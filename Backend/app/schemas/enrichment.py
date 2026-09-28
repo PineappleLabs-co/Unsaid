@@ -29,6 +29,8 @@ class RetryEnrichmentResponse(BaseModel):
 
 class ThoughtExpansionRequest(BaseModel):
     mode: str = Field(default="plan", description="Expansion mode: plan | research | features | summary")
+    provider: Optional[str] = Field(default=None, description="Optional LLM provider: groq | openai | anthropic")
+    model: Optional[str] = Field(default=None, description="Optional LLM model override")
 
 
 class ThoughtExpansionResponse(BaseModel):

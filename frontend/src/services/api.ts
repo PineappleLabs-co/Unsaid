@@ -132,20 +132,23 @@ export const api = {
     return { token: userId, user_id: userId, email };
   },
 
-  async loginWithGoogle(): Promise<{ token: string; user_id: string; email: string }> {
-    const googleId = `usr_google_${Date.now()}`;
-    const email = 'user.google@example.com';
-    setAuthToken(googleId);
-    localStorage.setItem('tc_user_email', email);
-    localStorage.setItem('tc_user_name', 'Google User');
-    return { token: googleId, user_id: googleId, email };
+  async loginWithGoogle(): Promise<{ token: string; user_id: string; email: string; name?: string }> {
+    const { signInWithGoogleReal } = await import('./firebaseAuth');
+    const authRes = await signInWithGoogleReal();
+    setAuthToken(authRes.token);
+    localStorage.setItem('tc_user_email', authRes.email);
+    localStorage.setItem('tc_user_name', authRes.displayName);
+    return { token: authRes.token, user_id: authRes.user_id, email: authRes.email, name: authRes.displayName };
   },
 
-  logout(): void {
+  async logout(): Promise<void> {
+    const { signOutFirebase } = await import('./firebaseAuth');
+    await signOutFirebase().catch(() => {});
     clearAuthToken();
     localStorage.removeItem('tc_user_email');
     localStorage.removeItem('tc_user_name');
   },
+
 
   async migrateSession(deviceId: string): Promise<any> {
     return request('/auth/migrate', {

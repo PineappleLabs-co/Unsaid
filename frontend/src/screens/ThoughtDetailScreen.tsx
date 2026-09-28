@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Share2, Trash2, Play, Pause, Copy, Check, Pencil, Sparkles, Loader2, CheckSquare } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 import { Thought } from '../types';
 import { api } from '../services/api';
+import { getAudioUrl } from '../services/localAudioStore';
 
 interface ThoughtDetailScreenProps {
   thought: Thought;
@@ -27,8 +28,66 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [text, setText] = useState(thought.transcription);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Poll backend for real Groq AI enrichment result
+  const [totalAudioDuration, setTotalAudioDuration] = useState<number>(() => {
+    const parts = (thought.audioDuration || '00:28').split(':');
+    const mins = parseInt(parts[0], 10) || 0;
+    const secs = parseInt(parts[1], 10) || 28;
+    return mins * 60 + secs;
+  });
+
+  // Setup real audio player with IndexedDB local voice storage priority
+  useEffect(() => {
+    let active = true;
+    let createdUrl: string | null = null;
+
+    async function initAudio() {
+      // 1. Try retrieving local voice recording from IndexedDB
+      let audioSrc = await getAudioUrl(currentThought.id);
+      if (audioSrc) {
+        createdUrl = audioSrc;
+      } else {
+        // Fallback to memory audioUrl or backend endpoint
+        audioSrc = currentThought.audioUrl || (currentThought.id ? `/api/v1/thoughts/${currentThought.id}/audio` : '');
+      }
+
+      if (!active || !audioSrc) return;
+
+      const audio = new Audio(audioSrc);
+      audioRef.current = audio;
+
+      audio.onloadedmetadata = () => {
+        if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+          setTotalAudioDuration(Math.round(audio.duration));
+        }
+      };
+
+      audio.ontimeupdate = () => {
+        setAudioSeconds(Math.floor(audio.currentTime));
+      };
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setAudioSeconds(0);
+      };
+    }
+
+    initAudio();
+
+    return () => {
+      active = false;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [currentThought.audioUrl, currentThought.id]);
+
+  // Poll backend for real Groq AI enrichment and Whisper transcription result
   useEffect(() => {
     setCurrentThought(thought);
     setText(thought.transcription);
@@ -42,13 +101,20 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
           if (status.enrichment_status === 'complete') {
             clearInterval(interval);
             setEnriching(false);
+
+            // Fetch latest thought record to retrieve the real Whisper transcript
+            const updated = await api.getThought(thought.id).catch(() => null);
+            const freshTranscript = updated?.transcript || updated?.raw_text || thought.transcription;
+
             setCurrentThought((prev) => ({
               ...prev,
               title: status.title || prev.title,
               summary: status.summary || prev.summary,
               tags: status.tags || prev.tags,
+              transcription: freshTranscript,
               enrichment_status: 'complete',
             }));
+            setText(freshTranscript);
           } else if (status.enrichment_status === 'failed' || count > 15) {
             clearInterval(interval);
             setEnriching(false);
@@ -65,23 +131,37 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
     }
   }, [thought]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isPlaying) {
-      interval = setInterval(() => {
-        setAudioSeconds((prev) => {
-          if (prev >= 28) {
-            setIsPlaying(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
+  const toggleAudioPlayback = () => {
+    if (!audioRef.current) {
+      const audioSrc = currentThought.audioUrl || (currentThought.id ? `/api/v1/thoughts/${currentThought.id}/audio` : '');
+      if (audioSrc) {
+        const audio = new Audio(audioSrc);
+        audioRef.current = audio;
+        audio.ontimeupdate = () => setAudioSeconds(Math.floor(audio.currentTime));
+        audio.onended = () => {
+          setIsPlaying(false);
+          setAudioSeconds(0);
+        };
+      }
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isPlaying]);
+
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current.play()
+          .then(() => setIsPlaying(true))
+          .catch((err: any) => {
+            console.warn('Real audio playback fallback:', err);
+            setIsPlaying(true);
+          });
+      }
+    } else {
+      setIsPlaying(!isPlaying);
+    }
+  };
+
 
   const handleCopy = () => {
     navigator.clipboard.writeText(text);
@@ -104,9 +184,12 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
   };
 
   const formatAudioTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
     const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-    return `00:${pad(secs)}`;
+    return `${pad(m)}:${pad(s)}`;
   };
+
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -239,7 +322,7 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={toggleAudioPlayback}
               style={{
                 width: '44px',
                 height: '44px',
@@ -266,8 +349,8 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
                     className="waveform-bar"
                     style={{
                       height: isPlaying ? `${Math.max(8, (h + (audioSeconds * 7 + idx * 3) % 25))}px` : `${h}px`,
-                      opacity: idx < audioSeconds * 0.9 ? 1 : 0.4,
-                      backgroundColor: idx < audioSeconds * 0.9 ? '#00d8ff' : '#ffffff',
+                      opacity: totalAudioDuration > 0 && idx < (audioSeconds / totalAudioDuration) * 27 ? 1 : 0.4,
+                      backgroundColor: totalAudioDuration > 0 && idx < (audioSeconds / totalAudioDuration) * 27 ? '#00d8ff' : '#ffffff',
                     }}
                   />
                 )
@@ -276,9 +359,10 @@ export const ThoughtDetailScreen: React.FC<ThoughtDetailScreenProps> = ({
           </div>
 
           <div style={{ fontSize: '13px', color: '#8eb3cb', fontWeight: 500, marginLeft: '60px' }}>
-            {formatAudioTime(audioSeconds)} / {thought.audioDuration}
+            {formatAudioTime(audioSeconds)} / {formatAudioTime(totalAudioDuration)}
           </div>
         </div>
+
 
         {/* Transcribed Thought Card */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

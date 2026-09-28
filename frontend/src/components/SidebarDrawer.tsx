@@ -17,10 +17,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
 }) => {
   const menuItems = [
     { label: 'Capture', action: () => onNavigate('record') },
-    { label: 'Inbox', action: () => onNavigate('history') },
-    { label: 'History', action: () => onNavigate('history') },
+    { label: 'Notes', action: () => onNavigate('notes') },
     { label: 'AI Credits', action: () => onOpenProPlan() },
     { label: 'Profile', action: () => onNavigate('profile') },
+
     { label: 'Settings', action: () => onNavigate('privacy') },
     { label: 'Help and Support', action: () => onNavigate('help') },
     { label: 'Privacy and Data', action: () => onNavigate('privacy') },

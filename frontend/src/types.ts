@@ -12,8 +12,11 @@ export type ScreenId =
   | 'saved'
   | 'category'
   | 'history'
+  | 'notes'
+  | 'note-detail'
   | 'thought-detail'
   | 'profile'
+
   | 'about'
   | 'help'
   | 'privacy';
@@ -37,8 +40,10 @@ export interface Thought {
   date: string;
   formattedTime: string;
   audioDuration: string;
+  audioUrl?: string;
   version?: number;
   summary?: string;
+
   tags?: string[];
   enrichment_status?: 'pending' | 'processing' | 'complete' | 'partial' | 'failed' | 'disabled';
   structuredPlan?: {

@@ -117,12 +117,23 @@ class EnrichmentService:
             await self.db.refresh(thought)
             return thought
 
-    async def expand_thought(self, thought: ThoughtRecord, mode: str = "plan"):
+    async def expand_thought(
+        self,
+        thought: ThoughtRecord,
+        mode: str = "plan",
+        provider: Optional[str] = None,
+        model: Optional[str] = None
+    ):
         from app.ai.expansion_agents import MultiAgentExpansionEngine
         from app.schemas.enrichment import ThoughtExpansionResponse
         input_text = thought.raw_text or thought.transcript or thought.title or ""
         engine = MultiAgentExpansionEngine()
-        result = await engine.expand_thought(text=input_text, mode=mode)
+        result = await engine.expand_thought(
+            text=input_text,
+            mode=mode,
+            provider=provider,
+            model_name=model
+        )
         return ThoughtExpansionResponse(
             thought_id=thought.id,
             mode=mode,
@@ -132,4 +143,5 @@ class EnrichmentService:
             insights=result.insights,
             suggested_features=result.suggested_features
         )
+
 

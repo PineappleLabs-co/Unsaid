@@ -85,7 +85,7 @@ async def upload_audio(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Perform transcription (Groq Whisper or mock fallback)
+    # Perform transcription (Groq Whisper or keep client speech transcript)
     transcription_text = ""
     if settings.GROQ_API_KEY and settings.GROQ_API_KEY != "your_groq_api_key_here":
         try:
@@ -95,21 +95,25 @@ async def upload_audio(
                 transcription = await client.audio.transcriptions.create(
                     file=(file.filename, audio_file.read()),
                     model=settings.GROQ_WHISPER_MODEL,
-                    response_format="text"
                 )
-                transcription_text = str(transcription).strip()
+                if hasattr(transcription, "text"):
+                    transcription_text = transcription.text.strip()
+                else:
+                    transcription_text = str(transcription).strip()
         except Exception as exc:
-            transcription_text = f"Voice recording ({file.filename})"
+            logger.warning(f"Groq Whisper STT encountered an issue: {exc}. Retaining user transcript.")
+            transcription_text = thought.raw_text or thought.transcript or ""
     else:
-        transcription_text = f"Transcribed note from audio recording ({file.filename})"
+        transcription_text = thought.raw_text or thought.transcript or ""
 
-    # Update thought transcript, raw text, and title
-    if transcription_text and transcription_text != f"Voice recording ({file.filename})":
+    # Update thought transcript, raw text, and title with real data
+    if transcription_text:
         thought.transcript = transcription_text
         thought.raw_text = transcription_text
-        if not thought.title or thought.title in ["New Captured Thought", "Transcribing & Enriching...", "Audio thought"]:
+        if not thought.title or thought.title in ["New Captured Thought", "Transcribing & Enriching...", "Audio thought", "Captured Idea"]:
             first_sentence = transcription_text.split(".")[0].strip()
             thought.title = first_sentence[:60] + ("..." if len(first_sentence) > 60 else "")
+
 
     thought.transcript_source = "server"
     thought.audio_ref = file_path

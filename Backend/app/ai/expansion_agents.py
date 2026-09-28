@@ -75,38 +75,23 @@ class MultiAgentExpansionEngine:
     async def expand_thought(
         self,
         text: str,
-        mode: Literal["plan", "research", "features", "summary"] = "plan"
+        mode: Literal["plan", "research", "features", "summary"] = "plan",
+        provider: Optional[str] = None,
+        model_name: Optional[str] = None,
     ) -> ExpansionResult:
-        system_prompt = self._get_agent_prompt(mode)
-        
-        # If Groq available, run live LLM
-        if self.api_key and self.api_key != "your_groq_api_key_here":
-            try:
-                from groq import AsyncGroq
-                client = AsyncGroq(api_key=self.api_key)
-                
-                response = await client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": f"Note content:\n\n{text}"}
-                    ],
-                    response_format={"type": "json_object"},
-                    temperature=0.2,
-                    max_tokens=800
-                )
-                
-                raw_json = response.choices[0].message.content or "{}"
-                data = json.loads(raw_json)
-                return ExpansionResult(
-                    title=data.get("title", f"Expanded {mode.capitalize()}"),
-                    summary=data.get("summary", "Expanded analysis completed."),
-                    actionable_steps=data.get("actionable_steps", []),
-                    insights=data.get("insights", []),
-                    suggested_features=data.get("suggested_features", [])
-                )
-            except Exception as exc:
-                logger.warning(f"Groq expansion failed ({exc}), falling back to deterministic synthesis.")
+        """
+        Executes thought expansion using the LangGraph multi-agent state graph.
+        """
+        try:
+            from app.ai.langgraph_expansion import langgraph_expansion_engine
+            return await langgraph_expansion_engine.expand_thought(
+                text=text,
+                mode=mode,
+                provider=provider,
+                model_name=model_name
+            )
+        except Exception as exc:
+            logger.warning(f"LangGraph execution exception ({exc}), falling back to deterministic synthesis.")
 
         # Fallback deterministic generator
         clean = text.strip()
@@ -129,3 +114,4 @@ class MultiAgentExpansionEngine:
                 "Export plan to Markdown / PDF"
             ]
         )
+

@@ -85,5 +85,11 @@ async def expand_thought(
         )
 
     enrichment_service = EnrichmentService(db)
-    return await enrichment_service.expand_thought(thought, mode=payload.mode)
+    return await enrichment_service.expand_thought(
+        thought,
+        mode=payload.mode,
+        provider=payload.provider,
+        model=payload.model
+    )
+
 

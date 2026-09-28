@@ -21,10 +21,15 @@ class Settings(BaseSettings):
     APP_CHECK_ENFORCED: bool = False
     REVENUECAT_WEBHOOK_SECRET: str = "test_revenuecat_secret"
 
-    # AI & Groq Gateway
+    # AI, Model Providers & LangChain Gateway
+    DEFAULT_LLM_PROVIDER: str = "groq"
+    DEFAULT_LLM_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_API_KEY: str = ""
-    GROQ_LLAMA_MODEL: str = "openai/gpt-oss-120b"
+    GROQ_LLAMA_MODEL: str = "llama-3.3-70b-versatile"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    GOOGLE_API_KEY: str = ""
 
     # Database & Storage
     DATABASE_URL: str = "sqlite+aiosqlite:///./thought_catcher.db"
