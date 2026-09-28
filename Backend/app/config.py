@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # AI & Groq Gateway
     GROQ_API_KEY: str = ""
-    GROQ_LLAMA_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_LLAMA_MODEL: str = "openai/gpt-oss-120b"
     GROQ_WHISPER_MODEL: str = "whisper-large-v3-turbo"
 
     # Database & Storage

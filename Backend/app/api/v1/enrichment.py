@@ -4,6 +4,8 @@ from app.database import get_db
 from app.schemas.enrichment import (
     EnrichmentStatusResponse,
     RetryEnrichmentResponse,
+    ThoughtExpansionRequest,
+    ThoughtExpansionResponse,
 )
 from app.schemas.thought import ThoughtResponse
 from app.repositories.base import ThoughtRepository
@@ -62,3 +64,26 @@ async def retry_enrichment(
     enrichment_service = EnrichmentService(db)
     updated = await enrichment_service.enrich_thought(thought, actor, force_enable_ai=True)
     return ThoughtResponse.model_validate(updated)
+
+
+@router.post("/{thought_id}/expand", response_model=ThoughtExpansionResponse)
+async def expand_thought(
+    thought_id: str,
+    payload: ThoughtExpansionRequest,
+    actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Triggers multi-agent deep expansion for plan, research, features, or summary.
+    """
+    repo = ThoughtRepository(db)
+    thought = await repo.get_by_id(thought_id, actor=actor)
+    if not thought:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Thought {thought_id} not found."
+        )
+
+    enrichment_service = EnrichmentService(db)
+    return await enrichment_service.expand_thought(thought, mode=payload.mode)
+

@@ -6,6 +6,9 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from app.database import Base, get_db
+import app.models.entities
+import app.api.v1.audio as audio_mod
+import app.api.v1.thoughts as thoughts_mod
 from app.main import app
 
 # In-memory test database
@@ -51,9 +54,12 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    orig_audio_session = audio_mod.AsyncSessionLocal
+    audio_mod.AsyncSessionLocal = TestingSessionLocal
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
+    audio_mod.AsyncSessionLocal = orig_audio_session
     app.dependency_overrides.clear()

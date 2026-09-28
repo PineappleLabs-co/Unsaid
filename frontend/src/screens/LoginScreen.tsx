@@ -1,19 +1,37 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { api } from '../services/api';
 
 interface LoginScreenProps {
-  onLoginSuccess: () => void;
+  onLoginSuccess: (user: { email: string; name: string; token: string }) => void;
+  onBack?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess, onBack }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLoginSuccess();
+    if (!email) return;
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await api.loginWithEmail(email, password);
+      onLoginSuccess({
+        email: res.email,
+        name: email.split('@')[0],
+        token: res.token,
+      });
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Authentication failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,21 +124,49 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           </button>
         </div>
 
-        {/* Create account button */}
-        <button type="submit" className="btn-primary" style={{ marginTop: '12px' }}>
-          Create account
+        {errorMessage && (
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(255, 68, 68, 0.15)',
+              border: '1px solid rgba(255, 68, 68, 0.4)',
+              color: '#ff6b6b',
+              fontSize: '13px',
+              textAlign: 'center',
+            }}
+          >
+            {errorMessage}
+          </div>
+        )}
+
+        {/* Submit button */}
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={loading}
+          style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+        >
+          {loading && <Loader2 size={18} className="animate-spin" />}
+          {loading ? 'Authenticating...' : 'Sign In / Create Account'}
         </button>
 
-        {/* Sign in footer */}
-        <p style={{ fontSize: '15px', color: '#ffffff', marginTop: '16px', fontWeight: 500 }}>
-          Already have an account?{' '}
-          <span
-            onClick={onLoginSuccess}
-            style={{ color: '#00d8ff', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#8eb3cb',
+              fontSize: '14px',
+              cursor: 'pointer',
+              marginTop: '8px',
+            }}
           >
-            Sign in
-          </span>
-        </p>
+            ← Back
+          </button>
+        )}
       </form>
     </motion.div>
   );

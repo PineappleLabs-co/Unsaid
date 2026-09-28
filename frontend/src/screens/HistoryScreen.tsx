@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, ChevronRight } from 'lucide-react';
+import { Search, ChevronRight, Sparkles } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
-import { Thought } from '../types';
+import { Thought, CategoryId } from '../types';
+import { api, BackendThought } from '../services/api';
 
 interface HistoryScreenProps {
   thoughts: Thought[];
@@ -16,16 +17,68 @@ export const HistoryScreen: React.FC<HistoryScreenProps> = ({
   onSelectThought,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [backendResults, setBackendResults] = useState<Thought[]>([]);
 
-  const filteredThoughts = thoughts.filter(
+  // Debounced backend search
+  useEffect(() => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      setBackendResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.searchThoughts(searchQuery);
+        if (res && res.results) {
+          const mapped: Thought[] = res.results.map((r) => {
+            const bt = r.thought;
+            const d = new Date(bt.server_created_at || Date.now());
+            const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            return {
+              id: bt.id,
+              title: bt.title || 'Captured Note',
+              transcription: bt.transcript || bt.raw_text || '',
+              category: (bt.type as CategoryId) || 'Idea',
+              date: dateStr,
+              formattedTime: `${dateStr} , ${timeStr}`,
+              audioDuration: '00:28',
+              summary: bt.summary || undefined,
+              tags: bt.tags || [],
+              version: bt.version,
+            };
+          });
+          setBackendResults(mapped);
+        }
+      } catch (err) {
+        console.warn('Backend search error:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Combine local thoughts + backend search results without duplicates
+  const localFiltered = thoughts.filter(
     (t) =>
       t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.transcription.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.category.toLowerCase().includes(searchQuery.toLowerCase())
+      t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.tags && t.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))) ||
+      (t.summary && t.summary.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const seenIds = new Set(localFiltered.map((t) => t.id));
+  const combined = [...localFiltered];
+  backendResults.forEach((bt) => {
+    if (!seenIds.has(bt.id)) {
+      combined.push(bt);
+      seenIds.add(bt.id);
+    }
+  });
+
   // Group thoughts by date
-  const grouped = filteredThoughts.reduce<Record<string, Thought[]>>((acc, thought) => {
+  const grouped = combined.reduce<Record<string, Thought[]>>((acc, thought) => {
     const d = thought.date || 'Recent';
     if (!acc[d]) acc[d] = [];
     acc[d].push(thought);

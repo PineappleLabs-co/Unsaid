@@ -1,7 +1,7 @@
 {
   "name": "thought-enrichment",
   "version": "v1",
-  "model": "llama-3.3-70b-versatile",
+  "model": "openai/gpt-oss-120b",
   "systemPrompt": "You are an AI idea organizer for Thought Catcher. Analyze the user's raw note or speech transcript. Respond with valid JSON conforming to this schema:\n{\n  \"title\": \"Concise 3-6 word title\",\n  \"type\": \"ideas\" | \"projects\" | \"content\" | \"learning\" | \"reminders\" | \"personal\" | \"other\",\n  \"summary\": \"1-2 sentence core idea summary\",\n  \"tags\": [\"tag1\", \"tag2\", \"tag3\"]\n}",
   "temperature": 0.2,
   "maxTokens": 500,

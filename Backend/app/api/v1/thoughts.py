@@ -79,7 +79,7 @@ async def upload_audio(
             detail=f"Thought {thought_id} not found."
         )
 
-    # Save audio temporarily
+    # Save audio
     os.makedirs(settings.STORAGE_DIR, exist_ok=True)
     file_path = os.path.join(settings.STORAGE_DIR, f"{thought_id}_{file.filename}")
     with open(file_path, "wb") as buffer:
@@ -97,25 +97,24 @@ async def upload_audio(
                     model=settings.GROQ_WHISPER_MODEL,
                     response_format="text"
                 )
-                transcription_text = str(transcription)
+                transcription_text = str(transcription).strip()
         except Exception as exc:
             transcription_text = f"Voice recording ({file.filename})"
     else:
         transcription_text = f"Transcribed note from audio recording ({file.filename})"
 
-    # Update thought transcript
-    thought.transcript = transcription_text
+    # Update thought transcript, raw text, and title
+    if transcription_text and transcription_text != f"Voice recording ({file.filename})":
+        thought.transcript = transcription_text
+        thought.raw_text = transcription_text
+        if not thought.title or thought.title in ["New Captured Thought", "Transcribing & Enriching...", "Audio thought"]:
+            first_sentence = transcription_text.split(".")[0].strip()
+            thought.title = first_sentence[:60] + ("..." if len(first_sentence) > 60 else "")
+
     thought.transcript_source = "server"
-    thought.audio_ref = file_path if thought.audio_retention == "keep" else None
+    thought.audio_ref = file_path
     thought.version += 1
     thought.updated_at = datetime.now(timezone.utc)
-
-    # Data minimization: delete audio file if retention is delete_after_transcription
-    if thought.audio_retention == "delete_after_transcription" and os.path.exists(file_path):
-        try:
-            os.remove(file_path)
-        except Exception:
-            pass
 
     await db.commit()
     await db.refresh(thought)
@@ -124,6 +123,26 @@ async def upload_audio(
         background_tasks.add_task(_run_background_enrichment, thought.id, actor, AsyncSessionLocal)
 
     return ThoughtResponse.model_validate(thought)
+
+
+@router.get("/{thought_id}/audio")
+async def get_thought_audio(
+    thought_id: str,
+    actor: ActorContext = Depends(get_current_actor),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Streams the stored audio recording for in-app playback.
+    """
+    from fastapi.responses import FileResponse
+    repo = ThoughtRepository(db)
+    thought = await repo.get_by_id(thought_id, actor=actor)
+    if not thought or not thought.audio_ref or not os.path.exists(thought.audio_ref):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Audio recording not found"
+        )
+    return FileResponse(thought.audio_ref, media_type="audio/webm")
 
 
 @router.get("", response_model=ThoughtListResponse)

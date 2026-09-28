@@ -37,6 +37,10 @@ export interface Thought {
   date: string;
   formattedTime: string;
   audioDuration: string;
+  version?: number;
+  summary?: string;
+  tags?: string[];
+  enrichment_status?: 'pending' | 'processing' | 'complete' | 'partial' | 'failed' | 'disabled';
   structuredPlan?: {
     summary: string;
     actionableSteps: string[];

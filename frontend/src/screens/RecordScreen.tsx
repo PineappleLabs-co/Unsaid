@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X, Download } from 'lucide-react';
+import { X, Download, Mic } from 'lucide-react';
 import { AppHeader } from '../components/AppHeader';
 
 interface RecordScreenProps {
   onMenuClick: () => void;
-  onFinishCapturing: (thoughtText: string) => void;
+  onFinishCapturing: (thoughtText: string, audioBlob?: Blob, durationSeconds?: number) => void;
 }
 
 export const RecordScreen: React.FC<RecordScreenProps> = ({
@@ -15,6 +15,85 @@ export const RecordScreen: React.FC<RecordScreenProps> = ({
   const [recordState, setRecordState] = useState<'listening' | 'paused' | 'capturing'>('listening');
   const [seconds, setSeconds] = useState(0);
   const [progress, setProgress] = useState(0);
+  const [transcriptPreview, setTranscriptPreview] = useState('');
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioBlobRef = useRef<Blob | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize MediaRecorder & SpeechRecognition
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    audioChunksRef.current = [];
+
+    // Setup real audio recording
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((s) => {
+          stream = s;
+          try {
+            const recorder = new MediaRecorder(s);
+            mediaRecorderRef.current = recorder;
+
+            recorder.ondataavailable = (e) => {
+              if (e.data && e.data.size > 0) {
+                audioChunksRef.current.push(e.data);
+              }
+            };
+
+            recorder.onstop = () => {
+              const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+              audioBlobRef.current = blob;
+            };
+
+            recorder.start(500); // 500ms time slice
+          } catch (err) {
+            console.warn('MediaRecorder error, using fallback:', err);
+          }
+        })
+        .catch((err) => {
+          console.warn('Microphone permission not granted or unavailable:', err);
+        });
+    }
+
+    // Optional SpeechRecognition preview
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onresult = (event: any) => {
+          let current = '';
+          for (let i = 0; i < event.results.length; i++) {
+            current += event.results[i][0].transcript + ' ';
+          }
+          if (current.trim()) {
+            setTranscriptPreview(current.trim());
+          }
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      } catch (e) {
+        console.warn('SpeechRecognition initialization error:', e);
+      }
+    }
+
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+    };
+  }, []);
 
   // Timer logic for recording
   useEffect(() => {
@@ -39,20 +118,19 @@ export const RecordScreen: React.FC<RecordScreenProps> = ({
           if (prev >= 100) {
             if (interval) clearInterval(interval);
             setTimeout(() => {
-              onFinishCapturing(
-                'Complete the project proposal for the client. Include the research, UI mockups and timeline. Also check the budget and confirm with the team tomorrow.'
-              );
+              const textToSave = transcriptPreview || 'Complete the project proposal for the client. Include the research, UI mockups and timeline. Also check the budget and confirm with the team tomorrow.';
+              onFinishCapturing(textToSave, audioBlobRef.current || undefined, seconds);
             }, 300);
             return 100;
           }
-          return prev + 18;
+          return prev + 25;
         });
-      }, 250);
+      }, 200);
     }
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [recordState, onFinishCapturing]);
+  }, [recordState, onFinishCapturing, transcriptPreview, seconds]);
 
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
@@ -62,16 +140,37 @@ export const RecordScreen: React.FC<RecordScreenProps> = ({
   };
 
   const handleStopOrSave = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+    }
     setRecordState('capturing');
   };
 
   const handleCancel = () => {
     setSeconds(0);
+    audioChunksRef.current = [];
+    audioBlobRef.current = null;
+    setTranscriptPreview('');
     setRecordState('listening');
   };
 
   const togglePause = () => {
-    setRecordState((prev) => (prev === 'listening' ? 'paused' : 'listening'));
+    if (recordState === 'listening') {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.pause();
+      }
+      setRecordState('paused');
+    } else {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
+        mediaRecorderRef.current.resume();
+      }
+      setRecordState('listening');
+    }
   };
 
   return (

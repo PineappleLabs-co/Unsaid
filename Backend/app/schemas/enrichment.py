@@ -25,3 +25,18 @@ class RetryEnrichmentResponse(BaseModel):
     thought_id: str
     status: str
     message: str
+
+
+class ThoughtExpansionRequest(BaseModel):
+    mode: str = Field(default="plan", description="Expansion mode: plan | research | features | summary")
+
+
+class ThoughtExpansionResponse(BaseModel):
+    thought_id: str
+    mode: str
+    title: str
+    summary: str
+    actionable_steps: List[str] = []
+    insights: List[str] = []
+    suggested_features: List[str] = []
+
