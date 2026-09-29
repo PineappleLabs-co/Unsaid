@@ -69,11 +69,16 @@ storage/
 .DS_Store
 Thumbs.db
 
-# Node / Frontend artifacts
+# Node / Expo / React Native artifacts
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.next/
 dist/
 out/
+
+# Expo
+.expo/
+mobile/.expo/
+mobile/android/
+mobile/ios/

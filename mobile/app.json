@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "UNSAID - Thought Catcher",
+    "slug": "unsaid-thought-catcher",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#03070d"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.unsaid.thoughtcatcher",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allow UNSAID to use your microphone to record your voice notes and capture your thoughts."
+      }
+    },
+    "android": {
+      "package": "com.unsaid.thoughtcatcher",
+      "adaptiveIcon": {
+        "backgroundColor": "#03070d",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "MODIFY_AUDIO_SETTINGS"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow UNSAID to access your microphone to capture thoughts."
+        }
+      ]
+    ]
+  }
+}
